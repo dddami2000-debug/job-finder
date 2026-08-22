@@ -3,56 +3,278 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="대학생을 위한 맞춤 채용공고 추천 서비스, 캠퍼스잡" />
-    <meta name="theme-color" content="#171b2c" />
-    <title>캠퍼스잡 | 나에게 맞는 첫 커리어</title>
-    <link rel="stylesheet" href="styles.css" />
-    <script src="app.js" defer></script>
+    <title>내 채용공고</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        place-items: center;
+        color: #1d2521;
+        background: #f4f6f4;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(760px, calc(100% - 32px));
+        padding: 42px;
+        border: 1px solid #e0e5e1;
+        border-radius: 22px;
+        background: #ffffff;
+        box-shadow: 0 18px 50px rgba(29, 37, 33, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 30px;
+        font-size: 34px;
+        letter-spacing: -0.05em;
+      }
+
+      .fields {
+        display: grid;
+        gap: 18px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      input {
+        width: 100%;
+        height: 50px;
+        border: 1px solid #d8ded9;
+        border-radius: 11px;
+        padding: 0 14px;
+        color: #1d2521;
+        background: #ffffff;
+        font: inherit;
+      }
+
+      input::placeholder {
+        color: #9ca49f;
+      }
+
+      input:focus-visible,
+      button:focus-visible {
+        outline: 3px solid rgba(46, 108, 76, 0.25);
+        outline-offset: 2px;
+      }
+
+      button {
+        width: 100%;
+        height: 52px;
+        margin-top: 26px;
+        border: 0;
+        border-radius: 11px;
+        color: #ffffff;
+        background: #1d4d39;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .job-list {
+        display: grid;
+        gap: 14px;
+        margin-top: 32px;
+      }
+
+      .job-list-title {
+        margin: 0 0 2px;
+        color: #56605a;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .job-card {
+        display: grid;
+        gap: 10px;
+        padding: 20px;
+        border: 1px solid #e0e5e1;
+        border-radius: 15px;
+        background: #fbfcfb;
+      }
+
+      .job-card[hidden] {
+        display: none;
+      }
+
+      .job-card h2 {
+        margin: 0;
+        color: #1d2521;
+        font-size: 19px;
+        letter-spacing: -0.03em;
+      }
+
+      .organization {
+        margin: 0;
+        color: #1d4d39;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .job-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin: 0;
+        color: #56605a;
+        font-size: 14px;
+      }
+
+      .job-details span {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .recommendation-reason {
+        margin: 0;
+        color: #1d4d39;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .job-card a {
+        width: fit-content;
+        color: #1d4d39;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .empty-message {
+        margin: 0;
+        color: #56605a;
+        font-size: 14px;
+      }
+
+      @media (max-width: 520px) {
+        main {
+          padding: 30px 22px;
+        }
+
+        h1 {
+          font-size: 30px;
+        }
+      }
+    </style>
   </head>
   <body>
-    <header class="site-header">
-      <div class="header-inner">
-        <a class="brand" href="#top" aria-label="캠퍼스잡 홈"><span class="brand-mark" aria-hidden="true">C</span><span>캠퍼스잡</span></a>
-        <nav class="main-nav" aria-label="주요 메뉴"><a class="active" href="#jobs">추천 공고</a><a href="#guide">취업 가이드</a></nav>
-        <button class="saved-link" id="show-saved" type="button" aria-pressed="false"><span aria-hidden="true">♡</span> 저장한 공고 <strong id="saved-count">0</strong></button>
+    <main>
+      <h1>내 채용공고</h1>
+
+      <div class="fields">
+        <label for="major">
+          학과
+          <input id="major" type="text" placeholder="예: 전자공학과" />
+        </label>
+
+        <label for="location">
+          희망 지역
+          <input id="location" type="text" placeholder="예: 대전" />
+        </label>
+
+        <label for="graduation">
+          졸업 시기
+          <input id="graduation" type="text" placeholder="예: 2027년 2월" />
+        </label>
       </div>
-    </header>
-    <main id="top">
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-inner">
-          <div class="hero-copy">
-            <p class="eyebrow">대학생 맞춤 채용 큐레이션</p>
-            <h1 id="hero-title">첫 커리어의 방향,<br /><em>공고부터 다르게.</em></h1>
-            <p class="hero-description">전공과 관심 직무를 알려주면 인턴·신입·대외활동 중 지금 지원하기 좋은 기회를 골라드려요.</p>
-            <form class="search-box" id="search-form" role="search"><span class="search-icon" aria-hidden="true"></span><label class="sr-only" for="search-input">기업, 직무, 기술 검색</label><input id="search-input" type="search" placeholder="기업, 직무, 기술을 검색해 보세요" autocomplete="off" /><button type="submit">공고 찾기</button></form>
-            <div class="quick-keywords" aria-label="추천 검색어"><span>인기 검색</span><button type="button" data-keyword="마케팅">마케팅</button><button type="button" data-keyword="개발">개발</button><button type="button" data-keyword="데이터">데이터</button><button type="button" data-keyword="디자인">디자인</button></div>
-          </div>
-          <aside class="match-card" aria-label="맞춤 추천 안내"><div class="match-orbit" aria-hidden="true"><span></span><i></i><b></b></div><p class="mini-label">오늘의 추천 리포트</p><strong><span id="total-jobs">8</span>개의 새로운 기회</strong><p>대학생이 지원할 수 있는 공고만 모았어요.</p><div class="match-tags"><span>인턴</span><span>신입</span><span>대외활동</span></div></aside>
-        </div>
-      </section>
-      <section class="jobs-section" id="jobs" aria-labelledby="jobs-title">
-        <div class="section-heading"><div><p class="section-label">RECOMMENDED FOR YOU</p><h2 id="jobs-title">지금 주목할 공고</h2><p id="result-summary">대학생에게 잘 맞는 기회를 추천 순으로 보여드려요.</p></div><button class="filter-toggle" id="mobile-filter-toggle" type="button" aria-expanded="false" aria-controls="filter-panel">필터 <span aria-hidden="true">＋</span></button></div>
-        <div class="jobs-layout">
-          <aside class="filter-panel" id="filter-panel" aria-label="공고 필터">
-            <div class="filter-title"><strong>조건 찾기</strong><button id="reset-filters" type="button">초기화</button></div>
-            <fieldset><legend>채용 형태</legend><label><input type="checkbox" name="type" value="인턴" /> <span>인턴</span><small>4</small></label><label><input type="checkbox" name="type" value="신입" /> <span>신입</span><small>3</small></label><label><input type="checkbox" name="type" value="대외활동" /> <span>대외활동</span><small>1</small></label></fieldset>
-            <fieldset><legend>직무 분야</legend><label><input type="checkbox" name="category" value="개발" /> <span>개발</span><small>2</small></label><label><input type="checkbox" name="category" value="기획" /> <span>기획·전략</span><small>2</small></label><label><input type="checkbox" name="category" value="마케팅" /> <span>마케팅</span><small>2</small></label><label><input type="checkbox" name="category" value="디자인" /> <span>디자인</span><small>1</small></label><label><input type="checkbox" name="category" value="데이터" /> <span>데이터</span><small>1</small></label></fieldset>
-            <fieldset><legend>근무 지역</legend><label><input type="radio" name="location" value="전체" checked /> <span>전체</span></label><label><input type="radio" name="location" value="서울" /> <span>서울</span></label><label><input type="radio" name="location" value="경기" /> <span>경기</span></label><label><input type="radio" name="location" value="원격" /> <span>원격 가능</span></label></fieldset>
-          </aside>
-          <div class="results-area">
-            <div class="results-toolbar"><span id="result-count" aria-live="polite">전체 8개</span><label>정렬 <select id="sort-select"><option value="recommend">추천 순</option><option value="deadline">마감 임박 순</option><option value="newest">최신 등록 순</option></select></label></div>
-            <div class="job-grid" id="job-grid" aria-live="polite"></div>
-            <div class="empty-results" id="empty-results" hidden><span aria-hidden="true">⌕</span><h3>조건에 맞는 공고가 없어요</h3><p>검색어나 필터를 조금 넓혀 보세요.</p><button type="button" id="empty-reset">전체 공고 보기</button></div>
-          </div>
-        </div>
-      </section>
-      <section class="guide-section" id="guide" aria-labelledby="guide-title">
-        <div class="guide-copy"><p class="section-label">CAREER STARTER KIT</p><h2 id="guide-title">지원하기 전,<br />이것만은 확인하세요.</h2><p>공고를 읽는 법부터 포트폴리오 점검까지, 첫 지원이 막막하지 않도록 준비했어요.</p></div>
-        <div class="guide-list"><article><span>01</span><div><strong>공고 속 필수 조건 구분하기</strong><p>우대사항이 부족해도 지원해도 되는지 알려드려요.</p></div><b aria-hidden="true">→</b></article><article><span>02</span><div><strong>경험을 직무 언어로 바꾸기</strong><p>수업과 동아리 경험도 좋은 자기소개서 소재가 돼요.</p></div><b aria-hidden="true">→</b></article><article><span>03</span><div><strong>제출 전 마지막 점검</strong><p>놓치기 쉬운 파일명과 제출 형식을 확인하세요.</p></div><b aria-hidden="true">→</b></article></div>
+
+      <button id="search-button" type="button">검색</button>
+
+      <section class="job-list" aria-labelledby="job-list-title">
+        <h2 class="job-list-title" id="job-list-title">공고 목록</h2>
+        <div id="job-cards" aria-live="polite"></div>
       </section>
     </main>
-    <footer><div><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true">C</span><span>캠퍼스잡</span></a><p>대학생의 가능성과 좋은 기회를 연결합니다.</p></div><p>표시된 공고는 서비스 체험을 위한 예시 데이터입니다.<br />지원 전 기업 채용 페이지에서 최신 내용을 확인하세요.</p></footer>
-    <dialog id="job-dialog" class="job-dialog"><div class="dialog-head"><span id="dialog-company"></span><button id="close-dialog" type="button" aria-label="상세 정보 닫기">×</button></div><div id="dialog-content"></div></dialog>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const locationInput = document.querySelector("#location");
+      const searchButton = document.querySelector("#search-button");
+      const jobList = document.querySelector(".job-list");
+      const jobCardsContainer = document.querySelector("#job-cards");
+      let jobCards = [];
+
+      const applyLocationFilter = () => {
+        const selectedLocation = locationInput.value.trim();
+        let visibleCount = 0;
+
+        jobCards.forEach((card) => {
+          const matches = !selectedLocation || card.dataset.location === selectedLocation;
+          card.hidden = !matches;
+          if (matches) visibleCount += 1;
+        });
+
+        const existingMessage = jobList.querySelector(".empty-message");
+        existingMessage?.remove();
+
+        if (visibleCount === 0) {
+          const message = document.createElement("p");
+          message.className = "empty-message";
+          message.textContent = "입력한 지역의 공고가 없습니다.";
+          jobList.append(message);
+        }
+      };
+
+      const createJobCard = (job) => {
+        const card = document.createElement("article");
+        card.className = "job-card";
+        card.dataset.location = job.region || "";
+
+        const organization = document.createElement("p");
+        organization.className = "organization";
+        organization.textContent = job.institution || "";
+
+        const title = document.createElement("h2");
+        title.textContent = job.title || "";
+
+        const details = document.createElement("p");
+        details.className = "job-details";
+        const region = document.createElement("span");
+        region.textContent = `근무지역: ${job.region || ""}`;
+        const deadline = document.createElement("span");
+        deadline.textContent = `마감일: ${job.deadline || ""}`;
+        details.append(region, deadline);
+
+        const reason = document.createElement("p");
+        reason.className = "recommendation-reason";
+        reason.textContent = "";
+
+        const link = document.createElement("a");
+        link.href = job.url || "";
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = "원문 링크 보기";
+
+        card.append(organization, title, details, reason, link);
+        return card;
+      };
+
+      fetch("jobs.json")
+        .then((response) => {
+          if (!response.ok) throw new Error("공고 파일을 읽을 수 없습니다.");
+          return response.json();
+        })
+        .then((jobs) => {
+          jobCardsContainer.replaceChildren(...jobs.map(createJobCard));
+          jobCards = [...jobCardsContainer.querySelectorAll(".job-card")];
+          applyLocationFilter();
+        })
+        .catch(() => {
+          const message = document.createElement("p");
+          message.className = "empty-message";
+          message.textContent = "공고 목록을 불러오지 못했습니다.";
+          jobCardsContainer.replaceChildren(message);
+        });
+
+      searchButton.addEventListener("click", applyLocationFilter);
+    </script>
   </body>
 </html>
