@@ -235,7 +235,12 @@
       </details>
     </main>
 
-    <script>
+    <script type="module">
+      import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
+
+      const SUPABASE_URL = "https://lwlaytzghoujsnoespdp.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_6gv7wmWCzirarEQ-IOn_5g_ZFwuGbTS";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
       const locationInput = document.querySelector("#location");
       const searchButton = document.querySelector("#search-button");
       const jobList = document.querySelector(".job-list");
@@ -370,23 +375,32 @@
         skippedCardsContainer.replaceChildren(...skippedJobs.map((job) => createJobCard(job, false)));
       };
 
-      fetch("jobs.json")
-        .then((response) => {
-          if (!response.ok) throw new Error("공고 파일을 읽을 수 없습니다.");
-          return response.json();
+      const showLoadError = () => {
+        const message = document.createElement("p");
+        message.className = "empty-message";
+        message.textContent = "공고 목록을 불러오지 못했습니다.";
+        jobCardsContainer.replaceChildren(message);
+      };
+
+      const loadJobs = async () => {
+        const { data: jobs, error } = await supabase.from("jobs").select("*");
+        if (error) throw error;
+
+        const skippedIds = new Set(skippedJobs.map((job) => job.id));
+        allJobs = jobs;
+        visibleJobs = sortRecommended(allJobs.filter((job) => isTargetJob(job) && !skippedIds.has(job.id)));
+        renderJobs();
+        renderSkippedJobs();
+      };
+
+      loadJobs().catch(showLoadError);
+
+      supabase
+        .channel("jobs-live")
+        .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, () => {
+          loadJobs().catch(showLoadError);
         })
-        .then((jobs) => {
-          allJobs = jobs;
-          visibleJobs = sortRecommended(allJobs.filter(isTargetJob));
-          renderJobs();
-          renderSkippedJobs();
-        })
-        .catch(() => {
-          const message = document.createElement("p");
-          message.className = "empty-message";
-          message.textContent = "공고 목록을 불러오지 못했습니다.";
-          jobCardsContainer.replaceChildren(message);
-        });
+        .subscribe();
 
       searchButton.addEventListener("click", applyLocationFilter);
     </script>
