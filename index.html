@@ -103,6 +103,30 @@
         background: #fbfcfb;
       }
 
+      .job-card > button {
+        width: fit-content;
+        height: auto;
+        margin: 0;
+        padding: 8px 12px;
+        color: #1d4d39;
+        background: #e8f0eb;
+        font-size: 13px;
+      }
+
+      .job-card details {
+        border-top: 1px solid #e0e5e1;
+        padding-top: 10px;
+        color: #56605a;
+        font-size: 14px;
+        white-space: pre-line;
+      }
+
+      .job-card details summary {
+        color: #1d4d39;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
       .job-card[hidden] {
         display: none;
       }
@@ -155,6 +179,17 @@
         font-size: 14px;
       }
 
+      .skipped-section {
+        margin-top: 28px;
+      }
+
+      .skipped-section summary {
+        color: #56605a;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
       @media (max-width: 520px) {
         main {
           padding: 30px 22px;
@@ -193,6 +228,11 @@
         <h2 class="job-list-title" id="job-list-title">공고 목록</h2>
         <div id="job-cards" aria-live="polite"></div>
       </section>
+
+      <details class="skipped-section">
+        <summary>넘긴 공고 (<span id="skipped-count">0</span>)</summary>
+        <div id="skipped-cards"></div>
+      </details>
     </main>
 
     <script>
@@ -200,14 +240,40 @@
       const searchButton = document.querySelector("#search-button");
       const jobList = document.querySelector(".job-list");
       const jobCardsContainer = document.querySelector("#job-cards");
+      const skippedCardsContainer = document.querySelector("#skipped-cards");
+      const skippedCount = document.querySelector("#skipped-count");
+      const antennaWords = ["안테나", "전자파", "RF", "무선", "통신"];
+      let allJobs = [];
+      let visibleJobs = [];
+      let skippedJobs = [];
       let jobCards = [];
+
+      const isIntern = (job) => /인턴/i.test(`${job.employment_type || ""} ${job.recruitment_type || ""}`);
+      const isTargetJob = (job) => {
+        const region = job.region || "";
+        const ncs = job.ncs || "";
+        const recruitment = job.recruitment_type || "";
+        const qualification = job.qualification || "";
+        const requiresExperience = /경력\s*(?:[1-9]\d*|[一二三四五六七八九十])\s*년|경력\s*필수/.test(qualification);
+        return !region.includes("해외") && !requiresExperience && /신입/.test(recruitment) && /연구|개발|설계/.test(ncs);
+      };
+      const antennaScore = (job) => {
+        const text = `${job.title || ""} ${job.ncs || ""} ${job.duties || ""}`;
+        return antennaWords.some((word) => text.toLowerCase().includes(word.toLowerCase())) ? 1 : 0;
+      };
+      const sortRecommended = (jobs) => [...jobs].sort((a, b) => {
+        const deadlineA = a.deadline || "9999-12-31";
+        const deadlineB = b.deadline || "9999-12-31";
+        return deadlineA.localeCompare(deadlineB) || Number(isIntern(b)) - Number(isIntern(a)) || antennaScore(b) - antennaScore(a);
+      });
 
       const applyLocationFilter = () => {
         const selectedLocation = locationInput.value.trim();
         let visibleCount = 0;
 
         jobCards.forEach((card) => {
-          const matches = !selectedLocation || card.dataset.location === selectedLocation;
+          const locations = (card.dataset.location || "").split(",").map((location) => location.trim());
+          const matches = !selectedLocation || locations.includes(selectedLocation);
           card.hidden = !matches;
           if (matches) visibleCount += 1;
         });
@@ -223,7 +289,7 @@
         }
       };
 
-      const createJobCard = (job) => {
+      const createJobCard = (job, allowSkip = true) => {
         const card = document.createElement("article");
         card.className = "job-card";
         card.dataset.location = job.region || "";
@@ -245,16 +311,63 @@
 
         const reason = document.createElement("p");
         reason.className = "recommendation-reason";
-        reason.textContent = "";
+        reason.textContent = `추천 기준: ${isIntern(job) ? "인턴 우선" : "마감일 임박"}`;
+
+        const qualification = document.createElement("p");
+        qualification.className = "job-details";
+        const qualificationText = job.qualification || (/신입/.test(job.recruitment_type || "") ? "신입 지원 가능" : "지원 자격 정보 없음");
+        qualification.textContent = `핵심 지원 자격: ${qualificationText}`;
+
+        const detail = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = "주요 업무와 전체 지원 조건 보기";
+        const detailText = document.createElement("p");
+        detailText.textContent = `주요 업무: ${job.duties || "공고 제목을 확인하세요"}\n전체 지원 조건: ${qualificationText}`;
+        detail.append(summary, detailText);
 
         const link = document.createElement("a");
-        link.href = job.url || "";
+        const rawUrl = (job.url || "").trim();
+        link.href = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : rawUrl ? `https://${rawUrl}` : "#";
         link.target = "_blank";
         link.rel = "noreferrer";
         link.textContent = "원문 링크 보기";
 
-        card.append(organization, title, details, reason, link);
+        card.append(organization, title, details, qualification, reason, detail, link);
+        card.tabIndex = 0;
+        const toggleDetails = () => { detail.open = !detail.open; };
+        card.addEventListener("click", (event) => {
+          if (!event.target.closest("a, button, summary")) toggleDetails();
+        });
+        card.addEventListener("keydown", (event) => {
+          if ((event.key === "Enter" || event.key === " ") && event.target === card) {
+            event.preventDefault();
+            toggleDetails();
+          }
+        });
+        if (allowSkip) {
+          const skipButton = document.createElement("button");
+          skipButton.type = "button";
+          skipButton.textContent = "넘기기";
+          skipButton.addEventListener("click", () => {
+            skippedJobs = [...skippedJobs, job];
+            visibleJobs = visibleJobs.filter((candidate) => candidate.id !== job.id);
+            renderJobs();
+            renderSkippedJobs();
+          });
+          card.append(skipButton);
+        }
         return card;
+      };
+
+      const renderJobs = () => {
+        jobCardsContainer.replaceChildren(...visibleJobs.map((job) => createJobCard(job)));
+        jobCards = [...jobCardsContainer.querySelectorAll(".job-card")];
+        applyLocationFilter();
+      };
+
+      const renderSkippedJobs = () => {
+        skippedCount.textContent = String(skippedJobs.length);
+        skippedCardsContainer.replaceChildren(...skippedJobs.map((job) => createJobCard(job, false)));
       };
 
       fetch("jobs.json")
@@ -263,9 +376,10 @@
           return response.json();
         })
         .then((jobs) => {
-          jobCardsContainer.replaceChildren(...jobs.map(createJobCard));
-          jobCards = [...jobCardsContainer.querySelectorAll(".job-card")];
-          applyLocationFilter();
+          allJobs = jobs;
+          visibleJobs = sortRecommended(allJobs.filter(isTargetJob));
+          renderJobs();
+          renderSkippedJobs();
         })
         .catch(() => {
           const message = document.createElement("p");

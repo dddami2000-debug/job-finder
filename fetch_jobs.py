@@ -15,6 +15,10 @@ YOUTH_INTERN_CODES = {"R1050", "R1060", "R1070"}
 
 
 def load_api_key() -> str:
+    configured_key = os.environ.get("RECRUITMENT_API_KEY", "").strip()
+    if configured_key:
+        return configured_key
+
     env_path = Path(os.environ.get("RECRUITMENT_ENV_FILE", ".env"))
     if not env_path.exists():
         raise FileNotFoundError(f"환경변수 파일을 찾을 수 없습니다: {env_path}")
@@ -57,6 +61,13 @@ def date_value(value: str) -> str:
     return value
 
 
+def normalize_url(value: str) -> str:
+    value = (value or "").strip()
+    if value and not value.lower().startswith(("http://", "https://")):
+        return f"https://{value}"
+    return value
+
+
 def safe_job(item: dict) -> dict:
     """연락처·담당자 정보가 포함되지 않은 공개 공고 필드만 남긴다."""
     return {
@@ -70,7 +81,9 @@ def safe_job(item: dict) -> dict:
         "start_date": date_value(item.get("pbancBgngYmd", "")),
         "deadline": date_value(item.get("pbancEndYmd", "")),
         "headcount": item.get("recrutNope"),
-        "url": item.get("srcUrl", ""),
+        "url": normalize_url(item.get("srcUrl", "")),
+        "duties": item.get("jobCont", ""),
+        "qualification": item.get("aplyQlfcCn", ""),
     }
 
 
@@ -93,7 +106,10 @@ def collect_jobs() -> list[dict]:
 
 if __name__ == "__main__":
     output_path = Path(__file__).with_name("jobs.json")
-    jobs = collect_jobs()
+    try:
+        jobs = collect_jobs()
+    except FileNotFoundError as error:
+        raise SystemExit(f"{error}\n프로젝트 폴더에 .env를 만들고 RECRUITMENT_API_KEY를 설정하거나 RECRUITMENT_ENV_FILE 경로를 지정하세요.") from error
     output_path.write_text(
         json.dumps(jobs, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
