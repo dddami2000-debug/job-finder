@@ -63,7 +63,10 @@
       }
 
       input:focus-visible,
-      button:focus-visible {
+      button:focus-visible,
+      select:focus-visible,
+      summary:focus-visible,
+      a:focus-visible {
         outline: 3px solid rgba(46, 108, 76, 0.25);
         outline-offset: 2px;
       }
@@ -396,7 +399,7 @@
         renderJobs();
         renderSkippedJobs();
         renderSavedJobs();
-        setSaveStatus("담은 공고가 Supabase에 저장되었습니다.");
+        setSaveStatus(error?.code === "23505" ? "이미 공용 목록에 담긴 공고입니다." : "담은 공고가 Supabase에 저장되었습니다.");
       };
 
       const createJobCard = (job, { allowSkip = true, allowSave = true } = {}) => {
