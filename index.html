@@ -81,6 +81,33 @@
         cursor: pointer;
       }
 
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.62;
+      }
+
+      .list-controls {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 32px;
+      }
+
+      .list-controls label {
+        min-width: 160px;
+      }
+
+      select {
+        height: 44px;
+        border: 1px solid #d8ded9;
+        border-radius: 11px;
+        padding: 0 38px 0 12px;
+        color: #1d2521;
+        background: #ffffff;
+        font: inherit;
+      }
+
       .job-list {
         display: grid;
         gap: 14px;
@@ -104,6 +131,22 @@
       }
 
       .job-card > button {
+        width: fit-content;
+        height: auto;
+        margin: 0;
+        padding: 8px 12px;
+        color: #1d4d39;
+        background: #e8f0eb;
+        font-size: 13px;
+      }
+
+      .card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .card-actions button {
         width: fit-content;
         height: auto;
         margin: 0;
@@ -179,15 +222,28 @@
         font-size: 14px;
       }
 
+      .saved-section,
       .skipped-section {
         margin-top: 28px;
       }
 
+      .saved-section summary,
       .skipped-section summary {
         color: #56605a;
         cursor: pointer;
         font-size: 15px;
         font-weight: 700;
+      }
+
+      .save-status {
+        min-height: 20px;
+        margin: 10px 0 0;
+        color: #56605a;
+        font-size: 13px;
+      }
+
+      .save-status[data-error="true"] {
+        color: #a13d32;
       }
 
       @media (max-width: 520px) {
@@ -198,6 +254,11 @@
         h1 {
           font-size: 30px;
         }
+
+        .list-controls {
+          align-items: stretch;
+          flex-direction: column;
+        }
       }
     </style>
   </head>
@@ -206,28 +267,35 @@
       <h1>내 채용공고</h1>
 
       <div class="fields">
-        <label for="major">
-          학과
-          <input id="major" type="text" placeholder="예: 전자공학과" />
-        </label>
-
         <label for="location">
           희망 지역
           <input id="location" type="text" placeholder="예: 대전" />
         </label>
-
-        <label for="graduation">
-          졸업 시기
-          <input id="graduation" type="text" placeholder="예: 2027년 2월" />
-        </label>
       </div>
 
-      <button id="search-button" type="button">검색</button>
+      <button id="search-button" type="button">지역으로 찾기</button>
+
+      <div class="list-controls">
+        <p class="job-list-title">지원 자격 확인이 필요한 후보 공고</p>
+        <label for="sort-order">
+          정렬
+          <select id="sort-order">
+            <option value="deadline">마감 임박 순</option>
+            <option value="antenna">안테나 키워드 순</option>
+          </select>
+        </label>
+      </div>
 
       <section class="job-list" aria-labelledby="job-list-title">
         <h2 class="job-list-title" id="job-list-title">공고 목록</h2>
         <div id="job-cards" aria-live="polite"></div>
       </section>
+
+      <details class="saved-section" open>
+        <summary>실습용 공용 담은 공고 (<span id="saved-count">0</span>)</summary>
+        <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
+        <div id="saved-cards"></div>
+      </details>
 
       <details class="skipped-section">
         <summary>넘긴 공고 (<span id="skipped-count">0</span>)</summary>
@@ -243,14 +311,19 @@
       const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
       const locationInput = document.querySelector("#location");
       const searchButton = document.querySelector("#search-button");
+      const sortOrder = document.querySelector("#sort-order");
       const jobList = document.querySelector(".job-list");
       const jobCardsContainer = document.querySelector("#job-cards");
+      const savedCardsContainer = document.querySelector("#saved-cards");
+      const savedCount = document.querySelector("#saved-count");
+      const saveStatus = document.querySelector("#save-status");
       const skippedCardsContainer = document.querySelector("#skipped-cards");
       const skippedCount = document.querySelector("#skipped-count");
-      const antennaWords = ["안테나", "전자파", "RF", "무선", "통신"];
+      const antennaWords = ["안테나", "전자파", "RF", "무선", "전파", "위성통신"];
       let allJobs = [];
       let visibleJobs = [];
       let skippedJobs = [];
+      let savedJobIds = new Set();
       let jobCards = [];
 
       const isIntern = (job) => /인턴/i.test(`${job.employment_type || ""} ${job.recruitment_type || ""}`);
@@ -260,17 +333,31 @@
         const recruitment = job.recruitment_type || "";
         const qualification = job.qualification || "";
         const requiresExperience = /경력\s*(?:[1-9]\d*|[一二三四五六七八九十])\s*년|경력\s*필수/.test(qualification);
-        return !region.includes("해외") && !requiresExperience && /신입/.test(recruitment) && /연구|개발|설계/.test(ncs);
+        const mixedExperienceRecruitment = /경력/.test(recruitment);
+        return !region.includes("해외") && !requiresExperience && !mixedExperienceRecruitment && /신입/.test(recruitment) && /연구|개발|설계/.test(ncs);
       };
       const antennaScore = (job) => {
         const text = `${job.title || ""} ${job.ncs || ""} ${job.duties || ""}`;
         return antennaWords.some((word) => text.toLowerCase().includes(word.toLowerCase())) ? 1 : 0;
       };
-      const sortRecommended = (jobs) => [...jobs].sort((a, b) => {
+      const compareByDeadline = (a, b) => {
         const deadlineA = a.deadline || "9999-12-31";
         const deadlineB = b.deadline || "9999-12-31";
         return deadlineA.localeCompare(deadlineB) || Number(isIntern(b)) - Number(isIntern(a)) || antennaScore(b) - antennaScore(a);
-      });
+      };
+      const compareByAntenna = (a, b) => antennaScore(b) - antennaScore(a) || compareByDeadline(a, b);
+      const sortRecommended = (jobs) => [...jobs].sort(sortOrder.value === "antenna" ? compareByAntenna : compareByDeadline);
+
+      const qualificationSummary = (job) => {
+        if (job.qualification) return job.qualification;
+        const type = job.employment_type || job.recruitment_type || "채용유형 확인 필요";
+        return `${type} · 경력 등 상세 자격은 원문 확인 필요`;
+      };
+
+      const setSaveStatus = (message, isError = false) => {
+        saveStatus.textContent = message;
+        saveStatus.dataset.error = String(isError);
+      };
 
       const applyLocationFilter = () => {
         const selectedLocation = locationInput.value.trim();
@@ -294,7 +381,25 @@
         }
       };
 
-      const createJobCard = (job, allowSkip = true) => {
+      const saveJob = async (job, button) => {
+        button.disabled = true;
+        setSaveStatus("공고를 저장하는 중입니다.");
+
+        const { error } = await supabase.from("scraps").insert({ job_id: job.id });
+        if (error && error.code !== "23505") {
+          button.disabled = false;
+          setSaveStatus("공고를 담지 못했습니다. 잠시 후 다시 시도해 주세요.", true);
+          return;
+        }
+
+        savedJobIds.add(String(job.id));
+        renderJobs();
+        renderSkippedJobs();
+        renderSavedJobs();
+        setSaveStatus("담은 공고가 Supabase에 저장되었습니다.");
+      };
+
+      const createJobCard = (job, { allowSkip = true, allowSave = true } = {}) => {
         const card = document.createElement("article");
         card.className = "job-card";
         card.dataset.location = job.region || "";
@@ -320,14 +425,14 @@
 
         const qualification = document.createElement("p");
         qualification.className = "job-details";
-        const qualificationText = job.qualification || (/신입/.test(job.recruitment_type || "") ? "신입 지원 가능" : "지원 자격 정보 없음");
+        const qualificationText = qualificationSummary(job);
         qualification.textContent = `핵심 지원 자격: ${qualificationText}`;
 
         const detail = document.createElement("details");
         const summary = document.createElement("summary");
         summary.textContent = "주요 업무와 전체 지원 조건 보기";
         const detailText = document.createElement("p");
-        detailText.textContent = `주요 업무: ${job.duties || "공고 제목을 확인하세요"}\n전체 지원 조건: ${qualificationText}`;
+        detailText.textContent = `관련 직무: ${job.duties || job.ncs || "원문 공고에서 확인"}\n전체 지원 조건: ${qualificationText}`;
         detail.append(summary, detailText);
 
         const link = document.createElement("a");
@@ -338,17 +443,23 @@
         link.textContent = "원문 링크 보기";
 
         card.append(organization, title, details, qualification, reason, detail, link);
-        card.tabIndex = 0;
         const toggleDetails = () => { detail.open = !detail.open; };
         card.addEventListener("click", (event) => {
           if (!event.target.closest("a, button, summary")) toggleDetails();
         });
-        card.addEventListener("keydown", (event) => {
-          if ((event.key === "Enter" || event.key === " ") && event.target === card) {
-            event.preventDefault();
-            toggleDetails();
-          }
-        });
+        const actions = document.createElement("div");
+        actions.className = "card-actions";
+
+        if (allowSave) {
+          const saveButton = document.createElement("button");
+          const isSaved = savedJobIds.has(String(job.id));
+          saveButton.type = "button";
+          saveButton.textContent = isSaved ? "담은 공고" : "담기";
+          saveButton.disabled = isSaved;
+          saveButton.addEventListener("click", () => saveJob(job, saveButton));
+          actions.append(saveButton);
+        }
+
         if (allowSkip) {
           const skipButton = document.createElement("button");
           skipButton.type = "button";
@@ -359,8 +470,9 @@
             renderJobs();
             renderSkippedJobs();
           });
-          card.append(skipButton);
+          actions.append(skipButton);
         }
+        if (actions.childElementCount) card.append(actions);
         return card;
       };
 
@@ -372,7 +484,20 @@
 
       const renderSkippedJobs = () => {
         skippedCount.textContent = String(skippedJobs.length);
-        skippedCardsContainer.replaceChildren(...skippedJobs.map((job) => createJobCard(job, false)));
+        skippedCardsContainer.replaceChildren(...skippedJobs.map((job) => createJobCard(job, { allowSkip: false })));
+      };
+
+      const renderSavedJobs = () => {
+        const savedJobs = allJobs.filter((job) => savedJobIds.has(String(job.id)));
+        savedCount.textContent = String(savedJobs.length);
+        if (savedJobs.length === 0) {
+          const message = document.createElement("p");
+          message.className = "empty-message";
+          message.textContent = "아직 담은 공고가 없습니다.";
+          savedCardsContainer.replaceChildren(message);
+          return;
+        }
+        savedCardsContainer.replaceChildren(...savedJobs.map((job) => createJobCard(job, { allowSkip: false, allowSave: false })));
       };
 
       const showLoadError = () => {
@@ -383,14 +508,20 @@
       };
 
       const loadJobs = async () => {
-        const { data: jobs, error } = await supabase.from("jobs").select("*");
-        if (error) throw error;
+        const [{ data: jobs, error: jobsError }, { data: scraps, error: scrapsError }] = await Promise.all([
+          supabase.from("jobs").select("*"),
+          supabase.from("scraps").select("job_id"),
+        ]);
+        if (jobsError) throw jobsError;
+        if (scrapsError) throw scrapsError;
 
         const skippedIds = new Set(skippedJobs.map((job) => job.id));
         allJobs = jobs;
+        savedJobIds = new Set(scraps.map((scrap) => String(scrap.job_id)));
         visibleJobs = sortRecommended(allJobs.filter((job) => isTargetJob(job) && !skippedIds.has(job.id)));
         renderJobs();
         renderSkippedJobs();
+        renderSavedJobs();
       };
 
       loadJobs().catch(showLoadError);
@@ -403,6 +534,10 @@
         .subscribe();
 
       searchButton.addEventListener("click", applyLocationFilter);
+      sortOrder.addEventListener("change", () => {
+        visibleJobs = sortRecommended(visibleJobs);
+        renderJobs();
+      });
     </script>
   </body>
 </html>
